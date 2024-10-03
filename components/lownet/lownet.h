@@ -18,6 +18,8 @@ typedef enum  : uint8_t
 #define LOWNET_CRC_SIZE 4
 #define LOWNET_PAYLOAD_SIZE (LOWNET_FRAME_SIZE - (LOWNET_HEAD_SIZE + LOWNET_CRC_SIZE)) // 200 bytes.
 
+extern int SNOOP;
+
 typedef struct __attribute__((__packed__))
 {
 	uint8_t magic[2];

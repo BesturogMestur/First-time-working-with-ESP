@@ -26,6 +26,8 @@
 
 #define TIMEOUT_STARTUP ((TickType_t)(5000 / portTICK_PERIOD_MS))
 
+int SNOOP = 0;
+
 struct {
 	TaskHandle_t  service;
 
@@ -243,7 +245,7 @@ void lownet_service_main(void* pvTaskParam) {
 			if (frame.source == 0xFF) { continue; }
 
 			// Check whether packet destination is us or broadcast.
-			if (frame.destination != net_system.identity.node && frame.destination != net_system.broadcast.node)  { continue; }
+			if (frame.destination != net_system.identity.node && frame.destination != net_system.broadcast.node && !SNOOP)  { continue; }
 
 			switch(frame.protocol) {
 				case LOWNET_PROTOCOL_RESERVE:
@@ -301,7 +303,6 @@ void lownet_sync_time(const lownet_frame_t* time_frame) {
 		return;
 	}
 
-	lownet_time_t stamp;
-	memcpy(&stamp, time_frame->payload, sizeof(stamp));
+	memcpy(&net_system.sync_time, time_frame->payload, sizeof(lownet_time_t));
 	net_system.sync_stamp = (esp_timer_get_time() / 1000);
 }

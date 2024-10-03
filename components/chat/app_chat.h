@@ -9,5 +9,6 @@ void chat_receive(const lownet_frame_t* frame);
 
 void chat_shout(const char* message);
 void chat_tell(const char* message, uint8_t destination);
+void updateSnoop();
 
 #endif

@@ -75,13 +75,16 @@ void app_main(void)
 	else if(!strncmp(p, "date", 4)){
 	  time(msg_out);
 	}
+	else if(!strncmp(p, "snoop", 5)){
+	  updateSnoop();
+	}
 	else {
 	  serial_write_line("Command error");
 	}
 	    
       } else if (msg_in[0] == '@') {
 	char* p = msg_in+3;
-	chat_tell(p+2, (uint8_t)strtol(strtok(p," "), NULL, 16));
+	chat_tell(p+3, (uint8_t)strtol(strtok(p," "), NULL, 16));
       } else {
 	chat_shout(msg_in);
       }

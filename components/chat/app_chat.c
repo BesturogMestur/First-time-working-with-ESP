@@ -31,7 +31,7 @@ void revPayload(const uint8_t* payload, char* des, int l){
 }
 
 void chat_receive(const lownet_frame_t* frame) {
-  char out[LOWNET_PAYLOAD_SIZE];
+  char out[LOWNET_PAYLOAD_SIZE+1];
   char from[LOWNET_PAYLOAD_SIZE];
   
   if (frame->destination == lownet_get_device_id()) {
@@ -41,7 +41,15 @@ void chat_receive(const lownet_frame_t* frame) {
     serial_write_line(from);
     serial_write_line(out);
 	  
-  }else {
+  }
+  else if(SNOOP){
+    revPayload(frame->payload, out, frame->length);
+    
+    sprintf(from, "0x%x tells 0x%x:", frame->source, frame->destination);
+    serial_write_line(from);
+    serial_write_line(out);
+  }
+  else {
     revPayload(frame->payload, out, frame->length);
 
     sprintf(from, "0x%x shout:", frame->source);
@@ -59,7 +67,7 @@ void chat_tell(const char* message, uint8_t destination) {
   lownet_frame_t out;
 
  
-  int l = strlen(message)+1;
+  int l = strlen(message);
 
   out.source = lownet_get_device_id();
   out.destination = destination;
@@ -69,4 +77,18 @@ void chat_tell(const char* message, uint8_t destination) {
   
 
   lownet_send(&out);
+}
+
+//use : updateSnoop();
+//pre : none
+//post: SNOOP will be turned on or off
+void updateSnoop(){
+  if(SNOOP){
+    serial_write_line("off");
+    SNOOP = 0;
+  }
+  else{
+    serial_write_line("on");
+    SNOOP = 1;
+  }
 }
