@@ -8,6 +8,7 @@
 
 #include "lownet.h"
 #include "serial_io.h"
+#include "app_id.h"
 
 #include "app_chat.h"
 
@@ -69,7 +70,7 @@ void chat_tell(const char* message, uint8_t destination) {
  
   int l = strlen(message);
 
-  out.source = lownet_get_device_id();
+  out.source = getId();
   out.destination = destination;
   out.protocol = LOWNET_PROTOCOL_CHAT;
   out.length = l;

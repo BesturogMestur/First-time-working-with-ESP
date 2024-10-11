@@ -11,6 +11,7 @@
 
 #include "app_chat.h"
 #include "app_ping.h"
+#include "app_id.h"
 
 const char* ERROR_OVERRUN = "ERROR // INPUT OVERRUN";
 const char* ERROR_UNKNOWN = "ERROR // PROCESSING FAILURE";
@@ -78,6 +79,24 @@ void app_main(void)
 	else if(!strncmp(p, "snoop", 5)){
 	  updateSnoop();
 	}
+	else if(!strncmp(p, "id", 2)){
+	    p = p+2;
+	    if(*p == 'f'){
+	      p = p+1;
+		if(*p == 's'){
+		  setId((uint8_t)strtol(p+4, NULL, 16));
+		}
+		else {
+		  idOnOff();
+		}
+	      }
+	    else{
+	      char id[3];
+	      sprintf(id,"%02x", getId());
+	      
+	      serial_write_line(id);  
+	    }
+	  }
 	else {
 	  serial_write_line("Command error");
 	}
