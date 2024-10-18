@@ -5,29 +5,47 @@
 #include "app_ping.h"
 
 #include "serial_io.h"
+#include "utility.h"
 
-typedef struct __attribute__((__packed__))
+
+void ping_command(char* args)
 {
-	lownet_time_t timestamp_out;
-	lownet_time_t timestamp_back;
-	uint8_t origin;
-} ping_packet_t;
+  if (!args)
+    {
+      serial_write_line("A node id must be provided\n");
+      return;
+    }
 
+  uint8_t dest = (uint8_t) hex_to_dec(args + 2);
+  if (dest == 0)
+    {
+      serial_write_line("Invalid node id\n");
+      return;
+    }
+  ping(dest, NULL, 0);
+}
 
-void ping(uint8_t node) {
+void ping(uint8_t node, const uint8_t* payload, uint8_t length)
+{ 
   lownet_frame_t frame;
-  ping_packet_t p;
-  uint8_t id = lownet_get_device_id();
-
-  p.origin = id;
-  p.timestamp_out = lownet_get_time();
-
-  frame.source = id;
+  frame.source = lownet_get_device_id();
   frame.destination = node;
   frame.protocol = LOWNET_PROTOCOL_PING;
-  frame.length = sizeof(p);
-  memcpy(frame.payload, &p, sizeof(p));
 
+  ping_packet_t packet;
+  packet.timestamp_out = lownet_get_time();
+  packet.origin = lownet_get_device_id();
+
+  memcpy(&frame.payload, &packet, sizeof packet);
+
+
+  if (payload)
+    {
+      memcpy(frame.payload + frame.length,
+	     payload,
+	     min(LOWNET_PAYLOAD_SIZE - sizeof(ping_packet_t), length));
+      frame.length += min(LOWNET_PAYLOAD_SIZE - sizeof(ping_packet_t), length);
+    }
   lownet_send(&frame);
 }
 
@@ -49,7 +67,7 @@ void ping_receive(const lownet_frame_t* frame) {
 	    frame->source, p.timestamp_out.seconds, p.timestamp_out.parts,
 	    p.timestamp_back.seconds, p.timestamp_back.parts);
     serial_write_line(out);
-	  
+    serial_write_line("p4");
   }
   else{
     //Got pinged

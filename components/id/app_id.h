@@ -6,7 +6,7 @@
 extern int ON;
 extern uint8_t FAKE_ID;
 
-void setId(uint8_t fakeID);
+void setId_command(char* msg);
 uint8_t getId();
 void idOnOff();
 

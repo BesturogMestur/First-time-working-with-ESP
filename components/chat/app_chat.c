@@ -8,9 +8,36 @@
 
 #include "lownet.h"
 #include "serial_io.h"
+#include "utility.h"
 #include "app_id.h"
 
 #include "app_chat.h"
+
+void shout_command(char* args)
+{
+	chat_shout(args);
+}
+
+void tell_command(char* args)
+{
+	char* dest = strtok(args, " ");
+	char* message = strtok(NULL, "\n");
+
+	uint8_t d = (uint8_t) hex_to_dec(dest + 2);
+	if (d == 0)
+		{
+			serial_write_line("Invalid node id\n");
+			return;
+		}
+
+	if (!message)
+		{
+			serial_write_line("A message must be provided\n");
+			return;
+		}
+
+	chat_tell(message, d);
+}
 
 //use : revPayload(payload, des, l);
 //pre : payload is a 8 bit unsingt pointer and des is
@@ -59,23 +86,48 @@ void chat_receive(const lownet_frame_t* frame) {
   }
 }
 
+// Usage: chat_valid_message(MESSAGE)
+// Pre:   MESSAGE != NULL
+// Value: strlen(MESSAGE) if MESSAGE is a valid message, 0 otherwise
+size_t chat_valid_message(const char* message)
+{
+	size_t i = 0;
+	/*
+		Loop Invariant:
+		0 <= i <= strlen(message)
+		forall x | 0 <= x < i : util_printable(message[x])
+	 */
+	for (; message[i]; i++)
+		{
+			if (!util_printable(message[i]))
+				return 0;
+		}
+
+	if (i > LOWNET_PAYLOAD_SIZE)
+		return 0;
+
+
+	return i;
+}
 
 void chat_shout(const char* message) {
   chat_tell(message, 0xff);
 }
 
 void chat_tell(const char* message, uint8_t destination) {
-  lownet_frame_t out;
+  size_t l = 0;
+  if (!(message && (l = chat_valid_message(message))))
+    return;
 
- 
-  int l = strlen(message);
+  lownet_frame_t out;
 
   out.source = getId();
   out.destination = destination;
   out.protocol = LOWNET_PROTOCOL_CHAT;
   out.length = l;
   memcpy(out.payload, message, l);
-  
+
+  //out.payload[l] = '\0' this maybe needed
 
   lownet_send(&out);
 }

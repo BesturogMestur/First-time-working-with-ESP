@@ -5,6 +5,19 @@
 
 #include "lownet.h"
 
+// Usage: shout_command(MSG)
+// Pre:   MSG != NULL
+// Post:  MSG as been broadcast over the network.
+void shout_command(char* args);
+
+// Usage: tell_command(ARGS)
+// Pre:   ARGS is a string of the form 'ID MSG'
+//        where ID is a node id number and MSG is a non
+//        empty string.  ID and MSG must be separated by a single space.
+// Post:  MSG has been sent to the node identified by ID.
+void tell_command(char* args);
+
+
 void chat_receive(const lownet_frame_t* frame);
 
 void chat_shout(const char* message);

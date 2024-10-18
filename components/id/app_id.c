@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <string.h>
 
 #include "lownet.h"
 #include "serial_io.h"
@@ -7,8 +8,8 @@
 int ON = 0;
 uint8_t FAKE_ID = 0x00;
 
-void setId(uint8_t fakeID){
-  FAKE_ID = fakeID;
+void setId_command(char* msg){
+  FAKE_ID = strtol(msg+2, NULL, 16);
 }
 
 uint8_t getId(){
