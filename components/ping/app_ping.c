@@ -67,30 +67,21 @@ void ping_receive(const lownet_frame_t* frame) {
 	    frame->source, p.timestamp_out.seconds, p.timestamp_out.parts,
 	    p.timestamp_back.seconds, p.timestamp_back.parts);
     serial_write_line(out);
-    serial_write_line("p4");
   }
   else{
     //Got pinged
-    lownet_frame_t sendBack;
-    lownet_time_t time = lownet_get_time();
+    p.timestamp_back = lownet_get_time();
 
-    lownet_get_time(time);
-	  
-    p.timestamp_back = time;
-    memcpy(sendBack.payload, &p, sizeof(p));
+    lownet_frame_t reply;
+    reply.source = lownet_get_device_id();
+    reply.destination = frame->source;
+    reply.protocol = LOWNET_PROTOCOL_PING;
+    reply.length = frame->length;
 
-    sendBack.source = id;
-    sendBack.destination = p.origin;
-    sendBack.protocol = LOWNET_PROTOCOL_PING;
-    sendBack.length = sizeof(p);
+    memcpy(&reply.payload, &frame->payload, frame->length);
+    memcpy(&reply.payload, &p, sizeof p);
 
-    char c[LOWNET_PAYLOAD_SIZE];
-    sprintf(c, "Got pinged at %ld"".%d by %x",
-	    time.seconds, time.parts, p.origin
-	    );
-    serial_write_line(c);
-    
-    lownet_send(&sendBack);
+    lownet_send(&reply);
   }
 
 	

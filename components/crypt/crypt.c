@@ -10,54 +10,47 @@
 #include "lownet.h"
 
 #include <stdio.h>
-void crypt_decrypt(const lownet_secure_frame_t* cipher, lownet_secure_frame_t* plain)
+void crypt_decrypt(const lownet_secure_frame_t* cipher,
+		   lownet_secure_frame_t* plain)
 {
+  unsigned char iv[16];
+  memcpy(iv, &cipher->ivt, sizeof iv);
+  memcpy(plain, cipher, LOWNET_UNENCRYPTED_SIZE + LOWNET_IVT_SIZE);
+
+  const uint8_t* aes_key = lownet_get_key()->bytes;
   esp_aes_context ctx;
   esp_aes_init(&ctx);
-  if (esp_aes_setkey (&ctx, lownet_get_key()->bytes, 256))
-    goto cleanup;
-  
-  uint8_t vector[LOWNET_IVT_SIZE];
-  memcpy(vector, cipher->ivt, LOWNET_IVT_SIZE);
-
-  memcpy(plain, cipher, LOWNET_UNENCRYPTED_SIZE + LOWNET_IVT_SIZE);  
-  
-  esp_aes_crypt_cbc(&ctx, ESP_AES_DECRYPT,
+  esp_aes_setkey(&ctx, aes_key, 256);
+  esp_aes_crypt_cbc(&ctx,
+		    ESP_AES_DECRYPT,
 		    LOWNET_ENCRYPTED_SIZE,
-		    vector,
-		    (const unsigned char*) &plain->protocol,
-		    (unsigned char*) &cipher->protocol
+		    iv,
+		    (const unsigned char*) &cipher->protocol,
+		    (unsigned char*) &plain->protocol
 		    );
- cleanup:
   esp_aes_free(&ctx);
 }
 
-void crypt_encrypt(const lownet_secure_frame_t* plain, lownet_secure_frame_t* cipher)
+void crypt_encrypt(const lownet_secure_frame_t* plain,
+		   lownet_secure_frame_t* cipher)
 {
-  uint8_t vector[LOWNET_IVT_SIZE];
-  memcpy(vector, plain->ivt, LOWNET_IVT_SIZE);
+  unsigned char iv[16];
+  memcpy(iv, &plain->ivt, sizeof iv);
+
   memcpy(cipher, plain, LOWNET_UNENCRYPTED_SIZE + LOWNET_IVT_SIZE);
-
+  const uint8_t* aes_key = lownet_get_key()->bytes;
   esp_aes_context ctx;
-  esp_aes_init(&ctx);
-  if (esp_aes_setkey (&ctx, lownet_get_key()->bytes, 256))
-    goto cleanup;
-  
 
-  puts("encypting");
-  /* memcpy(cipher->magic, plain->magic, sizeof(cipher->magic)); */
-  /* cipher->source = plain->source; */
-  /* cipher->destination = plain->destination; */
-  /* memcpy(cipher->ivt, vector, LOWNET_IVT_SIZE); */
-  esp_aes_crypt_cbc(&ctx, ESP_AES_ENCRYPT,
+  esp_aes_init(&ctx);
+  esp_aes_setkey(&ctx, aes_key, 256);
+  esp_aes_crypt_cbc(
+		    &ctx,
+		    ESP_AES_ENCRYPT,
 		    LOWNET_ENCRYPTED_SIZE,
-		    vector,
+		    iv,
 		    (const unsigned char*) &plain->protocol,
 		    (unsigned char*) &cipher->protocol
 		    );
-
- cleanup:
-  puts("cleanup");
   esp_aes_free(&ctx);
 }
 
@@ -69,23 +62,30 @@ void crypt_encrypt(const lownet_secure_frame_t* plain, lownet_secure_frame_t* ci
 void crypt_setkey_command(char* args)
 {
   //þarf að skija hvering liglar virkar, spurja þegar þú getur.
-  if(args == NULL) lownet_set_key(NULL);
+  if(!args) goto off;
 
   int l = strlen(args);
   lownet_key_t key;
 
-  if((*args == '0' || *args == '1') && l == 1)
+  if((*args == '0' || *args == '1') && l == 1){
+    puts("Key 0 or 1 has been set");
     key = lownet_keystore_read(*args - '0');
+  }
   else if(l == LOWNET_KEY_SIZE_AES){
-    memcpy(key.bytes, args, LOWNET_KEY_SIZE_AES);
-    key.size = LOWNET_KEY_SIZE_AES;
+    /* puts("costom key has been set"); */
+    /* key.size = LOWNET_KEY_SIZE_AES; */
+    /* memcpy(key.bytes, args, LOWNET_KEY_SIZE_AES); */
   }
   else{
-    lownet_set_key(NULL);
-    return;
+    goto off;
   }
   
   lownet_set_key(&key);
+  return;
+
+ off:
+  lownet_set_key(NULL);
+  puts("Encreson off");
 }
 
 

@@ -110,7 +110,7 @@ void lownet_init(lownet_recv_fn receive_cb, lownet_cipher_fn encrypt_fn, lownet_
 	xTaskCreatePinnedToCore(
 		lownet_service_main,
 		"lownet_service",
-		2048,
+		4096,
 		NULL,				// Pass no params into task method.
 		LOWNET_SERVICE_PRIO,
 		&net_system.service,
@@ -161,37 +161,15 @@ void lownet_encrypt_send(const lownet_frame_t* frame) {
 		((uint32_t*)plain.ivt)[i] = esp_random();
 	}
 
-	puts("FRAME ");
-	for (int i = 0; i < sizeof *frame; ++i)
-		printf("%02x%c", ((uint8_t*)frame)[i], (i % 24 == 0) ? '\n' : ' ');
-	putchar('\n');	
-
 
 	// Clone the plaintext frame into the plaintext secure frame.
 	memcpy(&plain, frame, LOWNET_UNENCRYPTED_SIZE);
 	memcpy(&plain.magic, cipher_magic, 2);
 	memcpy(&plain.protocol, &frame->protocol, LOWNET_ENCRYPTED_SIZE);
 
-	puts("PLAIN before");
-	for (int i = 0; i < sizeof plain; ++i)
-		printf("%02x%c", ((uint8_t*)&plain)[i], (i % 24 == 0) ? '\n' : ' ');
-	putchar('\n');	
+	
 	// Encrypt with user-defined enc function.
 	net_system.encrypt(&plain, &cipher);
-
-	lownet_secure_frame_t copy;
-	net_system.decrypt(&cipher, &copy);
-	printf("%s\n", memcmp(&copy, &plain, sizeof plain) == 0 ? "SAME" : "DIFFERENT" );
-
-	puts("PLAIN after");
-	for (int i = 0; i < sizeof plain; ++i)
-		printf("%02x%c", ((uint8_t*)&plain)[i], (i % 24 == 0) ? '\n' : ' ');
-	putchar('\n');
-	puts("CIPHER");
-	for (int i = 0; i < sizeof cipher; ++i)
-		printf("%02x%c", ((uint8_t*)&cipher)[i], (i % 24 == 0) ? '\n' : ' ');
-	putchar('\n');
-
 
 	if (esp_now_send(net_system.broadcast.mac, (const uint8_t*)&cipher, sizeof(cipher)) != ESP_OK) {
 		ESP_LOGE(TAG, "LowNet Frame send error");
@@ -328,7 +306,6 @@ void lownet_service_main(void* pvTaskParam) {
 
 	net_system.identity = lownet_lookup_mac(local_mac);
 	net_system.broadcast = lownet_lookup(0xFF);
-
 	if (!net_system.identity.node || !net_system.broadcast.node) {
 		ESP_EARLY_LOGE(TAG, "Failed to identify device / broadcast identity");
 		lownet_service_kill();
@@ -372,7 +349,6 @@ void lownet_service_main(void* pvTaskParam) {
 
 			// Check whether the network frame checksum matches computed checksum.
 			if (lownet_crc(&frame) != frame.crc) {
-			  puts("CRC ERROR");
 			  continue;
 			}
 
@@ -436,10 +412,6 @@ void lownet_inbound_handler(const esp_now_recv_info_t * info, const uint8_t* dat
 		memcpy(&frame, &plain, LOWNET_UNENCRYPTED_SIZE);
 		memcpy(&frame.magic, plain_magic, sizeof plain_magic);
 		memcpy(&frame.protocol, &plain.protocol, LOWNET_ENCRYPTED_SIZE);
-
-		for (int i = 0; i < sizeof frame; ++i)
-			printf("%02x%c", ((uint8_t*)&frame)[i], (i % 24 == 0) ? '\n' : ' ');
-		putchar('\n');
 
 		// And unpack the base frame, send it to the inbound queue.
 		if (xQueueSend(net_system.inbound, &frame, 0) != pdTRUE) {

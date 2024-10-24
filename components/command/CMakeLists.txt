@@ -1,5 +1,5 @@
 idf_component_register(
   SRCS "command.c"
   INCLUDE_DIRS "."
-  REQUIRES "lownet"
+  REQUIRES "lownet" "serial" "ping"
 )
