@@ -87,7 +87,7 @@ void command_receive(const lownet_frame_t* frame)
     mbedtls_pk_init(&pk);
     mbedtls_pk_parse_public_keyfile(&pk, lownet_public_key);
 
-    if(!mbedtls_rsa_public(mbedtls_pk_rsa(pk), sig_part, result)){
+    if(mbedtls_rsa_public(mbedtls_pk_rsa(pk), sig_part, result)){
       printf("Invalied signitrue\n");
       goto fullClear;
     }

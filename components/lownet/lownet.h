@@ -1,6 +1,7 @@
 #ifndef GUARD_LOWNET_H
 #define GUARD_LOWNET_H
 
+#include <assert.h>
 #include <stdint.h>
 
 #define LOWNET_SERVICE_CORE 1
@@ -55,10 +56,12 @@ typedef struct __attribute__((__packed__))
 	uint32_t crc;
 } lownet_secure_frame_t;
 
-typedef struct {
+typedef struct __attribute__((__packed__)) {
 	uint32_t seconds; // Seconds since UNIX epoch.
 	uint8_t parts; // Milliseconds, 1000/256 resolution.
 } lownet_time_t;
+
+static_assert(sizeof(lownet_time_t) == 5);
 
 // Lownet key structure.  Bytes member MUST point to a usable contiguous
 // region of memory of AT LEAST 'size' bytes.
