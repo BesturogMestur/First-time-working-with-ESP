@@ -36,6 +36,8 @@ void ping(uint8_t node, const uint8_t* payload, uint8_t length)
   packet.timestamp_out = lownet_get_time();
   packet.origin = lownet_get_device_id();
 
+  frame.length = sizeof packet;
+
   memcpy(&frame.payload, &packet, sizeof packet);
 
 
@@ -60,10 +62,11 @@ void ping_receive(const lownet_frame_t* frame) {
   ping_packet_t p;
   memcpy(&p, frame->payload, sizeof(p));
 
+  
   if(p.origin == id){
     //gott an awser
     char out[LOWNET_PAYLOAD_SIZE];
-    sprintf(out, "Pinged %x at time %ld"".%x got packed back at %ld"".%d",
+    sprintf(out, "Pinged 0x%2x at time %ld"".%d got packed back at %ld"".%d",
 	    frame->source, p.timestamp_out.seconds, p.timestamp_out.parts,
 	    p.timestamp_back.seconds, p.timestamp_back.parts);
     serial_write_line(out);
@@ -80,6 +83,11 @@ void ping_receive(const lownet_frame_t* frame) {
 
     memcpy(&reply.payload, &frame->payload, frame->length);
     memcpy(&reply.payload, &p, sizeof p);
+
+    printf("you got pinged at %ld"".%d by 0x%2x\n",
+	   p.timestamp_back.seconds,
+	   p.timestamp_back.parts,
+	   p.origin);
 
     lownet_send(&reply);
   }

@@ -2,6 +2,7 @@
 #define GUARD_APP_PING_H
 
 #include <stdint.h>
+#include <assert.h>
 
 #include "lownet.h"
 
@@ -29,4 +30,5 @@ typedef struct __attribute__((__packed__))
 	uint8_t origin;
 } ping_packet_t;
 
+static_assert(sizeof(ping_packet_t) == 11);
 #endif
