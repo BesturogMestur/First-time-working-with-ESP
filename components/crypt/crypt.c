@@ -67,8 +67,12 @@ void crypt_setkey_command(char* args)
   int l = strlen(args);
   lownet_key_t key;
 
-  if((*args == '0' || *args == '1') && l == 1){
-    puts("Key 0 or 1 has been set");
+  if((*args == '0') && l == 1){
+    puts("Key 0 has been set");
+    key = lownet_keystore_read(*args - '0');
+  }
+  else if((*args == '1') && l == 1){
+    puts("Key 1 has been set");
     key = lownet_keystore_read(*args - '0');
   }
   else if(l == LOWNET_KEY_SIZE_AES){

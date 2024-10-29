@@ -32,7 +32,6 @@ void command_init()
   time = lownet_get_time();
   
 }
-
 //use : proessMsg(frame);
 //pre : frame is constan poiner that points to a
 //	lownet_frame_t struct.
@@ -166,13 +165,10 @@ void command_receive(const lownet_frame_t* frame)
  
   uint8_t type = frame->protocol >> 6;
   if(type == 0) goto stop;
-
   
   if(lownet_get_time().seconds - time.seconds >= 10){
     command_init();
   }
-
-  printf("the type is %2x\n", type);
 
   if(type == 1){
     if(proessMsg(frame)) goto stop;

@@ -49,13 +49,8 @@ void tell_command(char* args)
 //post: The first l byts of payloand has been copyed into
 //	des.
 void revPayload(const uint8_t* payload, char* des, int l){
-  if(*(payload+l) == '\0'){
-    memcpy(des, payload, l);
-  }
-  else {
     memcpy(des, payload, l);
     des[l+1] = '\0';
-  }
 }
 
 void chat_receive(const lownet_frame_t* frame) {
