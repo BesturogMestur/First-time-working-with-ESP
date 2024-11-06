@@ -110,10 +110,8 @@ int sigVailid(){
 			      (unsigned char*)lownet_public_key,
 			      strlen(lownet_public_key) + 1
 			     );
-
-  mbedtls_rsa_context* temp = mbedtls_pk_rsa(pk);
   
-  if(mbedtls_rsa_public(temp, sig_part, result)){
+  if(mbedtls_rsa_public(mbedtls_pk_rsa(pk), sig_part, result)){
     printf("Invalied signitrue\n");
     mbedtls_pk_free(&pk);
     return 1;
