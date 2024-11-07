@@ -61,7 +61,6 @@ void crypt_encrypt(const lownet_secure_frame_t* plain,
 //        lownet communication.
 void crypt_setkey_command(char* args)
 {
-  //þarf að skija hvering liglar virkar, spurja þegar þú getur.
   if(!args) goto off;
 
   int l = strlen(args);
@@ -76,9 +75,10 @@ void crypt_setkey_command(char* args)
     key = lownet_keystore_read(*args - '0');
   }
   else if(l == LOWNET_KEY_SIZE_AES){
-    /* puts("costom key has been set"); */
-    /* key.size = LOWNET_KEY_SIZE_AES; */
-    /* memcpy(key.bytes, args, LOWNET_KEY_SIZE_AES); */
+    puts("costom key has been set");
+    key.size = LOWNET_KEY_SIZE_AES;
+    key.bytes = 0;
+    memcpy(key.bytes, args, LOWNET_KEY_SIZE_AES);
   }
   else{
     goto off;

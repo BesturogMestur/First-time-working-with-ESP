@@ -71,7 +71,7 @@ void ping_receive(const lownet_frame_t* frame) {
 	    p.timestamp_back.seconds, p.timestamp_back.parts);
     serial_write_line(out);
   }
-  else{
+  else if (frame->destination ==  id || frame->destination == 0xff ){
     //Got pinged
     p.timestamp_back = lownet_get_time();
 
@@ -91,6 +91,4 @@ void ping_receive(const lownet_frame_t* frame) {
 
     lownet_send(&reply);
   }
-
-	
 }

@@ -50,7 +50,7 @@ void tell_command(char* args)
 //	des.
 void revPayload(const uint8_t* payload, char* des, int l){
     memcpy(des, payload, l);
-    des[l+1] = '\0';
+    des[l] = '\0';
 }
 
 void chat_receive(const lownet_frame_t* frame) {

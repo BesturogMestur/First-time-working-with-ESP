@@ -326,6 +326,7 @@ void lownet_service_main(void* pvTaskParam) {
 
 	// Register our inbound network callback.
 	esp_now_register_recv_cb(lownet_inbound_handler);
+	
 
 	// Initialization done.  Set the ready bit and then hang  around
 	// dispatching frames as they arrive.
