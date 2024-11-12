@@ -23,6 +23,7 @@ void crane_receive(const lownet_frame_t* frame);
 void crane_send(uint8_t destination, const crane_packet_t* packet);
 
 conn_t bitChallenge(conn_t conn);
+uint8_t typeOfAction(char* cmd);
 
 // state of a single flow
 static struct
@@ -97,22 +98,11 @@ void crane_command(char* args)
 		}
 	else
 		{
-		  //set action as 0 for now so I can test milestone I
-			uint8_t action = 0;
-			switch (command[0])
-				{
-					// ------------------------------------------------
-					// Milestone II, Task 2: implement commands to CLI
-				case 'f':  // FORWARD, call crane_action with appropriate action!
-					// your code goes here!
-					break;
-				// repeat the above for all commands!
-				// ------------------------------------------------
-				default:
-					ESP_LOGI(TAG, "Invalid crane command");
-					return;
-				}
-			crane_action(action);
+		  uint8_t action = typeOfAction(command);
+		  if(action > CRANE_LIGHT_OFF)
+		    return;
+
+		  crane_action(action);
 		}
 }
 
@@ -263,12 +253,27 @@ int crane_action(uint8_t action)
 	// ------------------------------------------------
 	// Milestone II, Task 1: run the following up to five times
 	// Your code goes here
-	{
-		uint16_t seq = read_acks( );	 // seq is the cumulative ack from crane, or zero if none
 
-		// If seq > state.seq, report an error and close the connection, return -2
-		// - Else if seq == state.seq, we are good, increment state.seq by one (why?!) and return 0
-		// - Otherwise retransmit
+	while(true){
+	  //read the ack form the crane and see if
+	  //retrnsmison is needed afte 5 seconds.
+	  
+	  uint16_t seq = read_acks( );	 // seq is the cumulative ack from crane, or zero if non
+	  if(seq == 0)
+	    break;
+	    
+	  // If seq > state.seq, report an error and close the connection, return -2
+	  if(seq > state.seq){
+	    ESP_LOGE(TAG, "The sequnse number is wrong what is read is %d, but the sequst that is being send is %d", seq, state.seq);
+	    return -2;
+	  }
+	  // - Else if seq == state.seq, we are good, increment state.seq by one (why?!) and return 0
+	  else if(seq == state.seq){
+	    state.seq++;
+	    return 0;
+	  }
+	  // - Otherwise retransmit
+	  crane_send(state.crane, &packet);
 	}
 	// ------------------------------------------------
 
@@ -317,4 +322,38 @@ conn_t bitChallenge(const conn_t conn){
   out.challenge = ~(conn.challenge);
 
   return out;
+}
+
+//use : typeOfAction(cmd);
+//pre : cmd is a comand that that crane that is
+//	connected has to perform
+//post: return the type of command that cane should
+//	do.
+uint8_t typeOfAction(char* cmd){
+  if(!cmd)
+    return CRANE_NULL;
+  
+  switch (*cmd)
+    {
+      // ------------------------------------------------
+      // Milestone II, Task 2: implement commands to CLI
+    case 'f':  // FORWARD, call crane_action with appropriate action!
+      return CRANE_FWD;
+    case 'b': // BACKWARD
+      return CRANE_REV;
+    case 'u': //UP
+      return CRANE_UP;
+    case 'd': //DOWN
+      return CRANE_DOWN;
+    case 's': //STOP
+      return CRANE_STOP;
+    case 'o': //Light on
+      return CRANE_LIGHT_ON;
+    case 'O':
+      return CRANE_LIGHT_OFF;
+      // ------------------------------------------------
+    default:
+      ESP_LOGI(TAG, "Invalid crane command");
+      return -1;
+    }
 }
