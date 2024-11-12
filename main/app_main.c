@@ -18,6 +18,7 @@
 #include "app_ping.h"
 #include "app_id.h"
 #include "command.c"
+#include "crane.h"
 
 #define TAG "main"
 
@@ -32,6 +33,7 @@ const command_t commands[] = {
   {"ping",    "/ping ID                     Check if a node is online", ping_command},
   {"date",    "/date                        Print the current time", date_command},
   {"setkey",  "/setkey [KEY|0|1]            Set the encryption key to use.  If no key is provided encryption is disabled", crypt_setkey_command},
+  {"crane",   "/crane CMD [x..]		    Sends a command to the crane where CMD is the comand and x.. are the varuble that the spsyfic comand takes", crane_command},
   {"id",      "/id                          Print your ID", id_command},
   {"idf" ,    "/idf                         Fake Id on/off", idOnOff},
   {"idfs",    "/idfs ID                     Set the fake id as ID", setId_command},
@@ -70,6 +72,7 @@ void app_main(void)
   lownet_init(crypt_encrypt, crypt_decrypt);
   chat_init();
   ping_init();
+  crane_init();
 
   // Initialize the command module
   command_init();
