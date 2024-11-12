@@ -30,14 +30,20 @@ static uint8_t aes_key_bytes[LOWNET_KEY_SIZE_AES];
 
 int SNOOP = 0;
 
+typedef struct {
+	uint8_t protocol;
+	lownet_recv_fn handler;
+} protocol_t;
+
 struct {
-	TaskHandle_t  service;
+	TaskHandle_t  lownet_task;
+	TaskHandle_t  decrypt_task;
 
 	EventGroupHandle_t events;
 	QueueHandle_t inbound;
-	lownet_recv_fn  dispatch;
+	QueueHandle_t decrypt_queue;
 
-        lownet_cipher_fn encrypt;
+	lownet_cipher_fn encrypt;
 	lownet_cipher_fn decrypt;
 	lownet_key_t aes_key;
 	const char* signing_key;
@@ -48,6 +54,8 @@ struct {
 	// Network timing details.
 	lownet_time_t sync_time;
 	int64_t sync_stamp;
+	protocol_t protocols[LOWNET_MAX_PROTOCOLS];
+	uint8_t num_protocols;
 } net_system;
 
 const uint8_t plain_magic[2] = {0x10, 0x4e};
@@ -56,14 +64,16 @@ const uint8_t cipher_magic[2] = {0x20, 0x4e};
 uint8_t net_initialized = 0;
 
 // Forward declarations.
+lownet_recv_fn lownet_get_handler(uint8_t protocol);
 void lownet_service_main(void* pvTaskParam);
+void decrypt_service_main(void* pvTaskParam);
 void lownet_service_kill();
 void lownet_inbound_handler(const esp_now_recv_info_t * info, const uint8_t* data, int len);
 
 void lownet_sync_time(const lownet_frame_t* time_frame);
 
 
-void lownet_init(lownet_recv_fn receive_cb, lownet_cipher_fn encrypt_fn, lownet_cipher_fn decrypt_fn) {
+void lownet_init(lownet_cipher_fn encrypt_fn, lownet_cipher_fn decrypt_fn) {
 	if (net_initialized) {
 		ESP_LOGE(TAG, "LowNet already initialized");
 		return;
@@ -72,6 +82,13 @@ void lownet_init(lownet_recv_fn receive_cb, lownet_cipher_fn encrypt_fn, lownet_
 		memset(&net_system, 0, sizeof(net_system));
 		net_system.aes_key.bytes = (uint8_t*)&aes_key_bytes;
 	}
+
+	net_system.decrypt_queue = xQueueCreate(16, sizeof(lownet_secure_frame_t));
+	if (!net_system.decrypt_queue)
+		{
+			ESP_EARLY_LOGE(TAG, "Error creating lownet decrypt queue");
+			return;
+		}
 
 	ESP_ERROR_CHECK(nvs_flash_init());        // initialize NVS
 	ESP_ERROR_CHECK(esp_netif_init());
@@ -87,7 +104,6 @@ void lownet_init(lownet_recv_fn receive_cb, lownet_cipher_fn encrypt_fn, lownet_
 		return;
 	}
 
-	net_system.dispatch = receive_cb;
         net_system.encrypt = encrypt_fn;
 	net_system.decrypt = decrypt_fn;
 
@@ -113,8 +129,17 @@ void lownet_init(lownet_recv_fn receive_cb, lownet_cipher_fn encrypt_fn, lownet_
 		4096,
 		NULL,				// Pass no params into task method.
 		LOWNET_SERVICE_PRIO,
-		&net_system.service,
+		&net_system.lownet_task,
 		LOWNET_SERVICE_CORE
+	);
+
+	xTaskCreate(
+		decrypt_service_main,
+		"decrypt_service",
+		2048,
+		NULL,
+		LOWNET_SERVICE_PRIO,
+		&net_system.decrypt_task
 	);
 
 	// Block until the service has finished its own startup and is ready to use.
@@ -163,10 +188,10 @@ void lownet_encrypt_send(const lownet_frame_t* frame) {
 
 
 	// Clone the plaintext frame into the plaintext secure frame.
-	memcpy(&plain, frame, LOWNET_UNENCRYPTED_SIZE);
 	memcpy(&plain.magic, cipher_magic, 2);
+	plain.source = frame->source;
+	plain.destination = frame->destination;
 	memcpy(&plain.protocol, &frame->protocol, LOWNET_ENCRYPTED_SIZE);
-
 	
 	// Encrypt with user-defined enc function.
 	net_system.encrypt(&plain, &cipher);
@@ -286,6 +311,25 @@ const char* lownet_get_signing_key() {
 	return net_system.signing_key;
 }
 
+void decrypt_service_main(void* pvTaskParam)
+{
+	while (true)
+		{
+			lownet_secure_frame_t cipher;
+			lownet_secure_frame_t plain;
+			memset(&cipher, 0, sizeof cipher);
+
+			if (xQueueReceive(net_system.decrypt_queue , &cipher, UINT32_MAX) != pdTRUE)
+				continue;
+
+			net_system.decrypt(&cipher, &plain);
+			lownet_frame_t frame;
+			memcpy(&frame, &plain, LOWNET_UNENCRYPTED_SIZE);
+			memcpy(&frame.magic, plain_magic, sizeof plain_magic);
+			memcpy(&frame.protocol, &plain.protocol, LOWNET_ENCRYPTED_SIZE);
+			xQueueSend(net_system.inbound, &frame, 0);
+		}
+}
 
 // NOTE: Task methods do not return as a rule of thumb; anywhere we
 // encounter an error state we set the core error bit and kill the
@@ -306,6 +350,7 @@ void lownet_service_main(void* pvTaskParam) {
 
 	net_system.identity = lownet_lookup_mac(local_mac);
 	net_system.broadcast = lownet_lookup(0xFF);
+	
 	if (!net_system.identity.node || !net_system.broadcast.node) {
 		ESP_EARLY_LOGE(TAG, "Failed to identify device / broadcast identity");
 		lownet_service_kill();
@@ -344,9 +389,11 @@ void lownet_service_main(void* pvTaskParam) {
 		// queue has data for us.
 		if (xQueueReceive(net_system.inbound, &frame, UINT32_MAX) == pdTRUE) {
 
-			if (memcmp(&frame.magic, plain_magic, 2) != 0
-					&& memcmp(&frame.magic, cipher_magic, 2) != 0)
+			if (memcmp(&frame.magic, plain_magic, 2) != 0)
+			  {
+			        ESP_LOGD(TAG, "Invalid magic bytes");
 				continue;
+			  }
 
 			// Check whether the network frame checksum matches computed checksum.
 			if (lownet_crc(&frame) != frame.crc) {
@@ -360,23 +407,14 @@ void lownet_service_main(void* pvTaskParam) {
 			// Check whether packet destination is us or broadcast.
 			if (frame.destination != net_system.identity.node && frame.destination != net_system.broadcast.node && !SNOOP)  { continue; }
 
-			switch(frame.protocol & 0b00111111) {
-				case LOWNET_PROTOCOL_RESERVE:
-					// Reserved -- discard.
-					break;
+			lownet_recv_fn handler = lownet_get_handler(frame.protocol & 0b00111111);
+			if (!handler)
+				{
+					ESP_LOGD(TAG, "Unknown protocol %02x", frame.protocol & 0b00111111);
+					continue;
+				}
 
-				case LOWNET_PROTOCOL_TIME:
-					break;
-                                case LOWNET_PROTOCOL_COMMAND:
-				case LOWNET_PROTOCOL_CHAT:
-				case LOWNET_PROTOCOL_PING:
-					net_system.dispatch(&frame);
-					break;
-
-				default:
-					// Unknown protocol -- discard.
-					break;
-			}
+			handler(&frame);
 		}
 	}
 }
@@ -388,7 +426,8 @@ void lownet_service_kill() {
 	if (net_system.inbound) {
 		vQueueDelete(net_system.inbound);
 	}
-	vTaskDelete(net_system.service);
+	vTaskDelete(net_system.lownet_task);
+	vTaskDelete(net_system.decrypt_task);
 	return; // Should never execute, when this function is called from lownet service.
 }
 
@@ -396,29 +435,50 @@ void lownet_service_kill() {
 // It is of great importance that this callback function not block, and
 // return quickly to avoid locking up the wifi driver.
 void lownet_inbound_handler(const esp_now_recv_info_t * info, const uint8_t* data, int len) {
-        if (len == sizeof(lownet_frame_t) && net_system.aes_key.size == 0) {
+	if (len == sizeof(lownet_frame_t) && net_system.aes_key.size == 0) {
 		// Non-blocking queue send; if queue is full then packet is dropped.
 		if (xQueueSend(net_system.inbound, data, 0) != pdTRUE) {
 			// Error queueing data, likely errQUEUE_FULL.
 			// Packet is dropped.
 		}
 	} else if (len == sizeof(lownet_secure_frame_t) && net_system.aes_key.size != 0) {
-		lownet_secure_frame_t plain;
-		// Skip zero-init; decrypt method should overwrite the entire structure.
-
-		// Decrypt the secure frame back into plaintext.
-		net_system.decrypt((const lownet_secure_frame_t*)data, &plain);
-
-		lownet_frame_t frame;
-		memcpy(&frame, &plain, LOWNET_UNENCRYPTED_SIZE);
-		memcpy(&frame.magic, plain_magic, sizeof plain_magic);
-		memcpy(&frame.protocol, &plain.protocol, LOWNET_ENCRYPTED_SIZE);
-
-		// And unpack the base frame, send it to the inbound queue.
-		if (xQueueSend(net_system.inbound, &frame, 0) != pdTRUE) {
-			// Error queueing data, likely errQUEUE_FULL.
-			// Packet is dropped.
-		}
+		xQueueSend(net_system.decrypt_queue, data, 0);
 	}
+}
+
+// Usage: lownet_register_protocol(PROTO, HANDLER)
+// Pre:   PROTO is a protocol identifier which has not been registered
+//        HANDLER is the frame handler for PROTO
+// Value: 0 if PROTO was successfully registered, non-0 otherwise
+// Post:  An entry has been added to net_system.protocols and
+//        net_system.num_protocols has been incremented by 1
+int lownet_register_protocol(uint8_t protocol, lownet_recv_fn handler)
+{
+	if (net_system.num_protocols >= LOWNET_MAX_PROTOCOLS)
+		return 1;
+
+	net_system.protocols[net_system.num_protocols].protocol = protocol;
+	net_system.protocols[net_system.num_protocols].handler = handler;
+
+	++net_system.num_protocols;
+	return 0;
+}
+
+// Usage: lownet_get_handler(PROTO)
+// Pre:   PROTO is a protocol identifier which has previously been
+//        registered with lownet_register_protocol
+// Value: The frame handler for PROTO
+lownet_recv_fn lownet_get_handler(uint8_t protocol)
+{
+	/*
+	 * Loop invariant:
+	 * 0 <= i <= net_system.num_protocols
+	 * forall x 0 <= x < i | net_system.protocols[x].protocol != protocol
+	 */
+	for (int i = 0; i < net_system.num_protocols; ++i)
+		if (net_system.protocols[i].protocol == protocol)
+			return net_system.protocols[i].handler;
+
+	return NULL;
 }
 

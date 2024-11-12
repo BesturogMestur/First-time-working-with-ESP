@@ -6,14 +6,8 @@
 
 #define LOWNET_SERVICE_CORE 1
 #define LOWNET_SERVICE_PRIO 10
-typedef enum  : uint8_t
-{
-	LOWNET_PROTOCOL_RESERVE = 0x00,
-	LOWNET_PROTOCOL_TIME = 0x01,
-	LOWNET_PROTOCOL_CHAT = 0x02,
-	LOWNET_PROTOCOL_PING = 0x03,
-	LOWNET_PROTOCOL_COMMAND = 0x04,
-} lownet_protocol_t;
+
+#define LOWNET_MAX_PROTOCOLS 10
 
 #define LOWNET_FRAME_SIZE 212
 #define LOWNET_HEAD_SIZE 8
@@ -36,7 +30,7 @@ typedef struct __attribute__((__packed__))
 	uint8_t magic[2];
 	uint8_t source;
 	uint8_t destination;
-	lownet_protocol_t protocol;
+	uint8_t protocol;
 	uint8_t length;
 	uint8_t padding[2];
 	uint8_t payload[LOWNET_PAYLOAD_SIZE];
@@ -49,12 +43,25 @@ typedef struct __attribute__((__packed__))
 	uint8_t source;
 	uint8_t destination;
 	uint8_t ivt[LOWNET_IVT_SIZE];
-	lownet_protocol_t protocol;
+	uint8_t protocol;
 	uint8_t length;
 	uint8_t padding[2];
 	uint8_t payload[LOWNET_PAYLOAD_SIZE];
 	uint32_t crc;
 } lownet_secure_frame_t;
+
+static_assert(sizeof(lownet_frame_t) == LOWNET_FRAME_SIZE);
+static_assert(sizeof(lownet_secure_frame_t) == 228);
+static_assert(offsetof(lownet_secure_frame_t, payload) == LOWNET_UNENCRYPTED_SIZE + LOWNET_IVT_SIZE + 4);
+static_assert((LOWNET_ENCRYPTED_SIZE % 16) == 0);
+static_assert(
+	LOWNET_UNENCRYPTED_SIZE + LOWNET_ENCRYPTED_SIZE
+	== sizeof(lownet_frame_t)
+);
+static_assert(
+	LOWNET_UNENCRYPTED_SIZE + LOWNET_IVT_SIZE + LOWNET_ENCRYPTED_SIZE
+	== sizeof(lownet_secure_frame_t)
+);
 
 typedef struct __attribute__((__packed__)) {
 	uint32_t seconds; // Seconds since UNIX epoch.
@@ -73,8 +80,13 @@ typedef struct {
 typedef void (*lownet_recv_fn)(const lownet_frame_t* frame);
 typedef void (*lownet_cipher_fn)(const lownet_secure_frame_t* in_frame, lownet_secure_frame_t* out_frame);
 
+// Usage: lownet_register_protocol(PROTO, HANDLER)
+// Pre:   PROTO is a protocol identifier which has not been registered
+//        HANDLER is the frame handler for PROTO
+// Value: 0 if PROTO was successfully registered, non-0 otherwise
+int lownet_register_protocol(uint8_t protocol, lownet_recv_fn handler);
+
 void lownet_init(
-	lownet_recv_fn receive_cb,
 	lownet_cipher_fn encrypt_fn,
 	lownet_cipher_fn decrypt_fn
 );

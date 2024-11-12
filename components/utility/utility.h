@@ -8,6 +8,16 @@
 
 int util_printable(char c);
 
+// Usage: HEXDUMP(x)
+// Pre:   x is a valid operand for the addressof operator (&)
+// Post:  A hexadecimal representation of x has been written to
+//        the serial port
+#define HEXDUMP(x) do {\
+	for (int i = 0; i < sizeof x; ++i)\
+	printf("%02x%c", ((uint8_t*)&x)[i], (i + 1) % 16 == 0 ? '\n' : ' ');\
+	putchar('\n');\
+	} while (0)
+
 // Usage: min(A, B)
 // Pre:   None, other than those imposed by the type system
 // Value: The smaller of A and B

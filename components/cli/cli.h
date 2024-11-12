@@ -20,7 +20,7 @@ typedef struct
 // Usage: find_command(COMMAND, COMMANDS, N)
 // Pre:   COMMAND is the name of a command in COMMANDS.
 //        COMMANDS is an array of command_t objects.
-//        N is the length of the COMMANDS.
+//        N is the length of COMMANDS.
 // Value: A pointer to the function that corresponds to the command COMMAND.
 command_fun_t find_command (const char* command, const command_t* commands, size_t n);
 

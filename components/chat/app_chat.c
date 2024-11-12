@@ -3,6 +3,7 @@
 #include <freertos/queue.h>
 #include <freertos/semphr.h>
 #include <freertos/task.h>
+#include <esp_log.h>
 
 #include <string.h>
 
@@ -12,6 +13,16 @@
 #include "app_id.h"
 
 #include "app_chat.h"
+
+#define TAG "CHAT"
+
+void chat_init()
+{
+  if (lownet_register_protocol(LOWNET_PROTOCOL_CHAT, chat_receive) != 0)
+    {
+      ESP_LOGE(TAG, "Error registering CHAT protocol");
+    }
+}
 
 void shout_command(char* args)
 {

@@ -10,6 +10,8 @@
 #include "lownet.h"
 #include "app_ping.h"
 
+#define TAG "COMMAND"
+
 cmd_packet_t msg;
 cmd_signature_t sig_1;
 cmd_signature_t sig_2;

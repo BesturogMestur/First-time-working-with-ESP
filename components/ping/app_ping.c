@@ -2,10 +2,22 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <esp_log.h>
+
 #include "app_ping.h"
 
 #include "serial_io.h"
 #include "utility.h"
+
+#define TAG "PING"
+
+void ping_init()
+{
+  if (lownet_register_protocol(LOWNET_PROTOCOL_PING, ping_receive) != 0)
+    {
+      ESP_LOGE(TAG, "Error registering PING protocol");
+    }
+}
 
 
 void ping_command(char* args)

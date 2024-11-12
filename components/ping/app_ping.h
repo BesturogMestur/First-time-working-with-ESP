@@ -6,6 +6,10 @@
 
 #include "lownet.h"
 
+#define LOWNET_PROTOCOL_PING 0x03
+
+void ping_init();
+
 // Usage: ping_command(ID)
 // Pre:   ID is a valid node id.
 // Post:  A ping has been sent to the node identified by ID.

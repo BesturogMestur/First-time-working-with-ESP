@@ -5,6 +5,10 @@
 
 #include "lownet.h"
 
+#define LOWNET_PROTOCOL_CHAT 0x02
+
+void chat_init();
+
 // Usage: shout_command(MSG)
 // Pre:   MSG != NULL
 // Post:  MSG as been broadcast over the network.

@@ -19,6 +19,11 @@
 #include "app_id.h"
 #include "command.c"
 
+#define TAG "main"
+
+// Usage: help_command(NULL)
+// Pre:   None, this command takes no arguments.
+// Post:  A list of available commands has been written to the serial port.
 void help_command(char*);
 
 const command_t commands[] = {
@@ -53,27 +58,6 @@ void help_command(char*)
   serial_write_line("Any input not preceded by a '/' or '@' will be treated as a broadcast message.");
 }
 
-void app_frame_dispatch(const lownet_frame_t* frame) {
-  // Mask the signing bits.
-  switch(frame->protocol & 0b00111111) {
-  case LOWNET_PROTOCOL_TIME:
-    // Ignore TIME packets, deprecated.
-    break;
-
-  case LOWNET_PROTOCOL_CHAT:
-    chat_receive(frame);
-    break;
-
-  case LOWNET_PROTOCOL_PING:
-    ping_receive(frame);
-    break;
-
-  case LOWNET_PROTOCOL_COMMAND:
-    command_receive(frame);
-    break;
-  }
-}
-
 void app_main(void)
 {
   char msg_in[MSG_BUFFER_LENGTH];
@@ -83,7 +67,9 @@ void app_main(void)
   init_serial_service();
 
   // Initialize the LowNet services.
-  lownet_init(app_frame_dispatch, crypt_encrypt, crypt_decrypt);
+  lownet_init(crypt_encrypt, crypt_decrypt);
+  chat_init();
+  ping_init();
 
   // Initialize the command module
   command_init();
@@ -104,6 +90,8 @@ void app_main(void)
 	if (msg_in[0] == '/')
 	  {
 	    char* name = strtok(msg_in + 1, " ");
+	    if(!name)
+	      continue;
 	    command_fun_t command = FIND_COMMAND(name);
 	    if (!command)
 	      {

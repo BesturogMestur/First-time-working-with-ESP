@@ -5,6 +5,8 @@
 
 #include <lownet.h>
 
+#define LOWNET_PROTOCAL_COMMAND 0x04
+
 #define CMD_HASH_SIZE 32
 #define CMD_BLOCK_SIZE 256
 
