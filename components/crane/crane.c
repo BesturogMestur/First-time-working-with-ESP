@@ -32,91 +32,91 @@ status_t status;
 // state of a single flow
 static struct
 {
-	uint16_t seq;
-	uint8_t crane;
-	QueueHandle_t acks;
-	enum
-		{
-			ST_DISCONNECTED,
-			ST_HANDSHAKE,
-			ST_CONNECTED,
-		} state;
+  uint16_t seq;
+  uint8_t crane;
+  QueueHandle_t acks;
+  enum
+  {
+    ST_DISCONNECTED,
+    ST_HANDSHAKE,
+    ST_CONNECTED,
+  } state;
 } state;
 
 int crane_init(void)
 {
-	if (lownet_register_protocol(CRANE_PROTO, crane_receive) != 0)
-		{
-			ESP_LOGE(TAG, "Failed to register crane protocol");
-			return 1;
-		}
+  if (lownet_register_protocol(CRANE_PROTO, crane_receive) != 0)
+    {
+      ESP_LOGE(TAG, "Failed to register crane protocol");
+      return 1;
+    }
 
-	status.backlog = 0;
-	status.time_left = 0;
-	status.light = 0;
-	status.temp = 0;
+  status.backlog = 0;
+  status.time_left = 0;
+  status.light = 0;
+  status.temp = 0;
 
-	state.seq = 0;
-	state.crane = 0;
-	state.state = ST_DISCONNECTED;
-	state.acks = xQueueCreate(8, sizeof(uint16_t));
-	return 0;
+  state.seq = 0;
+  state.crane = 0;
+  state.state = ST_DISCONNECTED;
+  state.acks = xQueueCreate(8, sizeof(uint16_t));
+  return 0;
 }
 
 void crane_command(char* args)
 {
-	if (!args)
-		{
-			serial_write_line("Missing argument COMMAND");
-			return;
-		}
-	char* saveptr;
+  if (!args)
+    {
+      serial_write_line("Missing argument COMMAND");
+      return;
+    }
+  char* saveptr;
 
-	char* command = strtok_r(args, " ", &saveptr);
-	if (!command)
-		{
-			serial_write_line("Missing argument COMMAND");
-			return;
-		}
+  char* command = strtok_r(args, " ", &saveptr);
+  if (!command)
+    {
+      serial_write_line("Missing argument COMMAND");
+      return;
+    }
 
-	if (strcmp(command, "open") == 0)
-		{
-			char* id = strtok_r(NULL, " ", &saveptr);
-			if (!id)
-				{
-					serial_write_line("Missing argument ID");
-					return;
-				}
-			uint8_t dest = hex_to_dec(id + 2);
-			crane_connect(dest, 0);
-		}
-	else if (strcmp(command, "close") == 0)
-		{
-			crane_disconnect();
-		}
-	else if (strcmp(command, "print") == 0)
-		{
-			printStatus();
-		}
-	else if (strcmp(command, "test") == 0)
-		{
-			char* id = strtok_r(NULL, " ", &saveptr);
-			if (!id)
-				{
-					serial_write_line("Missing argument ID");
-					return;
-				}
-			uint8_t dest = hex_to_dec(id + 2);
-			crane_test(dest);
-		}
-	else
-		{
-		  uint8_t action = typeOfAction(command);
-		  if(action > CRANE_LIGHT_OFF)
-		    return;
+  if (strcmp(command, "open") == 0)
+    {
+      char* id = strtok_r(NULL, " ", &saveptr);
+      if (!id)
+	{
+	  serial_write_line("Missing argument ID");
+	  return;
+	}
+      uint8_t dest = hex_to_dec(id + 2);
+      crane_connect(dest, 0);
+    }
+  else if (strcmp(command, "close") == 0)
+    {
+      crane_disconnect();
+    }
+  else if (strcmp(command, "print") == 0)
+    {
+      printStatus();
+    }
+  else if (strcmp(command, "test") == 0)
+    {
+      char* id = strtok_r(NULL, " ", &saveptr);
+      if (!id)
+	{
+	  serial_write_line("Missing argument ID");
+	  return;
+	}
+      uint8_t dest = hex_to_dec(id + 2);
+      crane_test(dest);
+    }
+  else
+    {
+      uint8_t action = typeOfAction(command);
+      if(action > CRANE_LIGHT_OFF)
+	return;
 
-		  crane_action(action);
-		}
+      crane_action(action);
+    }
 }
 
 void crane_recv_connect(const crane_packet_t* packet)
@@ -159,47 +159,47 @@ void crane_recv_connect(const crane_packet_t* packet)
 
 void crane_recv_close(const crane_packet_t* packet)
 {
-	ESP_LOGI(TAG, "Closing connection");
-	state.seq = 0;
-	state.state = ST_DISCONNECTED;
-	state.crane = 0;
+  ESP_LOGI(TAG, "Closing connection");
+  state.seq = 0;
+  state.state = ST_DISCONNECTED;
+  state.crane = 0;
 }
 
 void crane_recv_status(const crane_packet_t* packet)
 {
 	
-	if ( packet->flags & CRANE_NAK )	// crane missed some packet
-		{
-			// Not in use yet -- anywhere, so you can ignore
-			ESP_LOGI(TAG, "Received status packet with NAK -- not in use yet" );
-			return;
-		}
-	else // push the cumulative ack to ACK-queue
-		xQueueSend( state.acks, &packet->seq, 0 );
+  if ( packet->flags & CRANE_NAK )	// crane missed some packet
+    {
+      // Not in use yet -- anywhere, so you can ignore
+      ESP_LOGI(TAG, "Received status packet with NAK -- not in use yet" );
+      return;
+    }
+  else // push the cumulative ack to ACK-queue
+    xQueueSend( state.acks, &packet->seq, 0 );
 
 
-	memcpy(&status, &packet->d.status, sizeof status);
+  memcpy(&status, &packet->d.status, sizeof status);
 	
 }
 
 void crane_receive(const lownet_frame_t* frame)
 {
-	crane_packet_t packet;
-	memcpy(&packet, frame->payload, sizeof packet);
-	ESP_LOGI(TAG, "Received packet frame from %02x, type: %d", frame->source, packet.type);
-	switch (packet.type)
-		{
-		case CRANE_CONNECT:
-			crane_recv_connect(&packet);
-			break;
-		case CRANE_STATUS:
-			crane_recv_status(&packet);
-			break;
-		case CRANE_ACTION:
-			break;
-		case CRANE_CLOSE:
-			crane_recv_close(&packet);
-		}
+  crane_packet_t packet;
+  memcpy(&packet, frame->payload, sizeof packet);
+  ESP_LOGI(TAG, "Received packet frame from %02x, type: %d", frame->source, packet.type);
+  switch (packet.type)
+    {
+    case CRANE_CONNECT:
+      crane_recv_connect(&packet);
+      break;
+    case CRANE_STATUS:
+      crane_recv_status(&packet);
+      break;
+    case CRANE_ACTION:
+      break;
+    case CRANE_CLOSE:
+      crane_recv_close(&packet);
+    }
 }
 
 /*
@@ -208,25 +208,25 @@ void crane_receive(const lownet_frame_t* frame)
  */
 void crane_connect(uint8_t id, int b)
 {
-	if (state.state != ST_DISCONNECTED)
-		return;
+  if (state.state != ST_DISCONNECTED)
+    return;
 
-	crane_packet_t packet;
-	packet.type = CRANE_CONNECT;
+  crane_packet_t packet;
+  packet.type = CRANE_CONNECT;
 
-	if(!b){
-	  packet.flags = CRANE_SYN;
-	}
-	else{
-	  packet.flags = CRANE_SYN | CRANE_TEST;
-	}
+  if(!b){
+    packet.flags = CRANE_SYN;
+  }
+  else{
+    packet.flags = CRANE_SYN | CRANE_TEST;
+  }
 	
-	packet.seq = state.seq; 
-	state.crane = id;
-	state.state = ST_HANDSHAKE;
-	++state.seq;
+  packet.seq = state.seq; 
+  state.crane = id;
+  state.state = ST_HANDSHAKE;
+  ++state.seq;
 
-	crane_send(id, &packet); 
+  crane_send(id, &packet); 
 }
 
 void crane_disconnect(void)
@@ -252,15 +252,15 @@ void crane_disconnect(void)
  */
 uint16_t read_acks(void)
 {
-	uint16_t seq, x;
+  uint16_t seq, x;
 
-	// Wait for an ack up to 5 seconds
-	if ( xQueueReceive(state.acks, &seq, 5000/portTICK_PERIOD_MS) != pdTRUE )
-		seq = 0;
-	// read any other acks if in the queue
-	while ( xQueueReceive(state.acks, &x, 0) == pdTRUE )
-		seq = seq >= x ? seq : x;
-	return seq;
+  // Wait for an ack up to 5 seconds
+  if ( xQueueReceive(state.acks, &seq, 5000/portTICK_PERIOD_MS) != pdTRUE )
+    seq = 0;
+  // read any other acks if in the queue
+  while ( xQueueReceive(state.acks, &x, 0) == pdTRUE )
+    seq = seq >= x ? seq : x;
+  return seq;
 }
 
 /*
@@ -269,8 +269,6 @@ uint16_t read_acks(void)
 int crane_action(uint8_t action)
 {
   crane_packet_t packet;
-
-  ESP_LOGI(TAG, "befor seq = %d", state.seq);
 
   packet.type = CRANE_ACTION;
   packet.seq = state.seq;
@@ -293,7 +291,6 @@ int crane_action(uint8_t action)
     }
     else if(seq == state.seq){
       ++state.seq;
-      ESP_LOGI(TAG, "after seq = %d", state.seq);
       return 0;
     }else {
       crane_send(state.crane, &packet);
@@ -306,24 +303,12 @@ int crane_action(uint8_t action)
 }
 
 
-// ------------------------------------------------
-//
-// Milestone III: run the test pattern
-//
-// 1. establish connection with TEST flag
-// 2. run the test pattern according to the specs
-// 3. close the connection
-//
-// Hint: you can work it all out here slowly, or be a wizard
-//       and launch a separate task for this!
-//
 void crane_test(uint8_t id)
 {
   crane_connect(id, 1);
   while(state.state != ST_CONNECTED){
     //loop invarin: dvies not conecte to crane
     //wait for for the 3 way hand shakes
-    ESP_LOGW(TAG, "the stat is 0x%02x", state.state);
     if(state.state == ST_DISCONNECTED){
       ESP_LOGE(TAG, "3 way hand shake failed");
       return;
@@ -333,18 +318,16 @@ void crane_test(uint8_t id)
   tests();
   crane_disconnect();
 }
-// ------------------------------------------------
-
 
 void crane_send(uint8_t id, const crane_packet_t* packet)
 {
-	lownet_frame_t frame;
-	frame.destination = id;
-	frame.protocol = CRANE_PROTO;
-	frame.length = sizeof *packet;
-	memcpy(frame.payload, packet, sizeof *packet);
+  lownet_frame_t frame;
+  frame.destination = id;
+  frame.protocol = CRANE_PROTO;
+  frame.length = sizeof *packet;
+  memcpy(frame.payload, packet, sizeof *packet);
 
-	lownet_send(&frame);
+  lownet_send(&frame);
 }
 
 //use : printStatus()
@@ -445,17 +428,17 @@ void tests(){
     vTaskDelay(50 / portTICK_PERIOD_MS);
   }
 
- for(int i = 0; i < 2; i++){
+  for(int i = 0; i < 2; i++){
     //Loop inveried: 0<=i<2
     //crane action up will be called
     crane_action(CRANE_UP);
   }
 
- crane_action(CRANE_REV);
+  crane_action(CRANE_REV);
 
- crane_action(CRANE_LIGHT_OFF);
+  crane_action(CRANE_LIGHT_OFF);
 
- while(status.backlog != 0){
+  while(status.backlog != 0){
     //loop invarin: backlog is not 0
     //wait for all action in backlog are done
     if(state.state == ST_DISCONNECTED){
@@ -463,13 +446,13 @@ void tests(){
     }
     vTaskDelay(50 / portTICK_PERIOD_MS);
   }
- return;
+  return;
 
  stop:
- ESP_LOGE(
-	  TAG,
-	  "TEST failed: crane was disconnected"
-	  "befor all action were done"
-	 );
- return;
+  ESP_LOGE(
+	   TAG,
+	   "TEST failed: crane was disconnected"
+	   "befor all action were done"
+	   );
+  return;
 }
